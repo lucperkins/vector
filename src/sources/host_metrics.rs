@@ -28,6 +28,8 @@ use heim::{
     units::{information::byte, time::second},
     Error,
 };
+#[cfg(target_os = "linux")]
+use heim_runtime;
 use serde::{
     de::{self, Visitor},
     Deserialize, Deserializer, Serialize, Serializer,
@@ -172,6 +174,18 @@ impl HostMetricsConfig {
 
     async fn capture_metrics(&self) -> impl Iterator<Item = Event> {
         let hostname = crate::get_hostname();
+        let virt = heim::virt::detect().await;
+
+        if let Some(virtualized) = virt {
+            if virtualized.is_container() {
+                if std::env::var_os("PROCFS_ROOT").is_some() {
+                    heim_runtime::linux::set_procfs_root("PROCFS_ROOT".to_string());
+                }
+                if std::env::var_os("SYSFS_ROOT").is_some() {
+                    heim_runtime::linux::set_sysfs_root("PROCFS_ROOT".to_string());
+                }
+            }
+        }
         let mut metrics = Vec::new();
         if self.has_collector(Collector::Cpu) {
             metrics.extend(add_collector("cpu", self.cpu_metrics().await));

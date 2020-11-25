@@ -160,12 +160,23 @@ version = "1.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d373d78ded7d0b3fa8039375718cde0aace493f2e34fb60f51cbf567562ca801"
 dependencies = [
- "async-task 4.0.2",
+ "async-task",
  "concurrent-queue",
  "fastrand",
- "futures-lite 1.11.1",
+ "futures-lite",
  "once_cell",
  "vec-arena",
+]
+
+[[package]]
+name = "async-fs"
+version = "1.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8b3ca4f8ff117c37c278a2f7415ce9be55560b846b5bc4412aaa5d29c1c3dae2"
+dependencies = [
+ "async-lock",
+ "blocking",
+ "futures-lite",
 ]
 
 [[package]]
@@ -180,7 +191,7 @@ dependencies = [
  "async-mutex",
  "async-stream",
  "async-trait",
- "blocking 1.0.2",
+ "blocking",
  "bson",
  "bytes 0.5.6",
  "chrono",
@@ -266,11 +277,11 @@ checksum = "b5bfd63f6fc8fd2925473a147d3f4d252c712291efdde0d7057b25146563402c"
 dependencies = [
  "concurrent-queue",
  "fastrand",
- "futures-lite 1.11.1",
+ "futures-lite",
  "log",
  "nb-connect",
  "once_cell",
- "parking 2.0.0",
+ "parking",
  "polling",
  "vec-arena",
  "waker-fn",
@@ -301,9 +312,25 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "06de475c85affe184648202401d7622afb32f0f74e02192857d0201a16defbe5"
 dependencies = [
  "async-io",
- "blocking 1.0.2",
+ "blocking",
  "fastrand",
- "futures-lite 1.11.1",
+ "futures-lite",
+]
+
+[[package]]
+name = "async-process"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4c8cea09c1fb10a317d1b5af8024eeba256d6554763e85ecd90ff8df31c7bbda"
+dependencies = [
+ "async-io",
+ "blocking",
+ "cfg-if 0.1.10",
+ "event-listener",
+ "futures-lite",
+ "once_cell",
+ "signal-hook",
+ "winapi 0.3.9",
 ]
 
 [[package]]
@@ -312,7 +339,7 @@ version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c238bd34d425674d8003b8d674cc04baf74e1b71802f3c62451e3bf86f2858ef"
 dependencies = [
- "futures-lite 1.11.1",
+ "futures-lite",
  "rustls 0.18.1",
  "webpki",
 ]
@@ -337,12 +364,6 @@ dependencies = [
  "quote 1.0.7",
  "syn 1.0.48",
 ]
-
-[[package]]
-name = "async-task"
-version = "3.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c17772156ef2829aadc587461c7753af20b7e8db1529bc66855add962a3b35d3"
 
 [[package]]
 name = "async-task"
@@ -558,29 +579,15 @@ checksum = "8d696c370c750c948ada61c69a0ee2cbbb9c50b1019ddb86d9317157a99c2cae"
 
 [[package]]
 name = "blocking"
-version = "0.4.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d2468ff7bf85066b4a3678fede6fe66db31846d753ff0adfbfab2c6a6e81612b"
-dependencies = [
- "async-channel",
- "atomic-waker",
- "futures-lite 0.1.11",
- "once_cell",
- "parking 1.0.6",
- "waker-fn",
-]
-
-[[package]]
-name = "blocking"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c5e170dbede1f740736619b776d7251cb1b9095c435c34d8ca9f57fcd2f335e9"
 dependencies = [
  "async-channel",
- "async-task 4.0.2",
+ "async-task",
  "atomic-waker",
  "fastrand",
- "futures-lite 1.11.1",
+ "futures-lite",
  "once_cell",
 ]
 
@@ -973,7 +980,17 @@ version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "57d24c7a13c43e870e37c1556b74555437870a04514f7685f5b354e090567171"
 dependencies = [
- "core-foundation-sys",
+ "core-foundation-sys 0.7.0",
+ "libc",
+]
+
+[[package]]
+name = "core-foundation"
+version = "0.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0a89e2ae426ea83155dccf10c0fa6b1463ef6d5fcb44cee0b224a408fa640a62"
+dependencies = [
+ "core-foundation-sys 0.8.2",
  "libc",
 ]
 
@@ -982,6 +999,12 @@ name = "core-foundation-sys"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b3a71ab494c0b5b860bdc8407ae08978052417070c2ced38573a9157ad75b8ac"
+
+[[package]]
+name = "core-foundation-sys"
+version = "0.8.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ea221b5284a47e40033bf9b66f35f984ec0ea2931eb03505246cd27a963f981b"
 
 [[package]]
 name = "cpu-time"
@@ -1425,9 +1448,9 @@ dependencies = [
 
 [[package]]
 name = "darwin-libproc"
-version = "0.1.2"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9fb90051930c9a0f09e585762152048e23ac74d20c10590ef7cf01c0343c3046"
+checksum = "cc629b7cf42586fee31dae31f9ab73fa5ff5f0170016aa61be5fcbc12a90c516"
 dependencies = [
  "darwin-libproc-sys",
  "libc",
@@ -1436,9 +1459,9 @@ dependencies = [
 
 [[package]]
 name = "darwin-libproc-sys"
-version = "0.1.2"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "57cebb5bde66eecdd30ddc4b9cd208238b15db4982ccc72db59d699ea10867c1"
+checksum = "ef0aa083b94c54aa4cfd9bbfd37856714c139d1dc511af80270558c7ba3b4816"
 dependencies = [
  "libc",
 ]
@@ -1996,21 +2019,6 @@ checksum = "6e1798854a4727ff944a7b12aa999f58ce7aa81db80d2dfaaf2ba06f065ddd2b"
 
 [[package]]
 name = "futures-lite"
-version = "0.1.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "97999970129b808f0ccba93211201d431fcc12d7e1ffae03a61b5cedd1a7ced2"
-dependencies = [
- "fastrand",
- "futures-core",
- "futures-io",
- "memchr",
- "parking 2.0.0",
- "pin-project-lite",
- "waker-fn",
-]
-
-[[package]]
-name = "futures-lite"
 version = "1.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "381a7ad57b1bad34693f63f6f377e1abded7a9c85c9d3eb6771e11c60aaadab9"
@@ -2019,7 +2027,7 @@ dependencies = [
  "futures-core",
  "futures-io",
  "memchr",
- "parking 2.0.0",
+ "parking",
  "pin-project-lite",
  "waker-fn",
 ]
@@ -2370,8 +2378,7 @@ dependencies = [
 [[package]]
 name = "heim"
 version = "0.1.0-beta.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d1014732324a9baf5a691525faabb33909bf6f40dcc2b03c8f2fb07bb01e7e3f"
+source = "git+https://github.com/eeyun/heim?branch=eeyun/proc_sys_cfg#eebcfb6849adf70a6aa06701b9d8fb70e80e08fc"
 dependencies = [
  "heim-common",
  "heim-cpu",
@@ -2388,29 +2395,27 @@ dependencies = [
 [[package]]
 name = "heim-common"
 version = "0.1.0-beta.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "58d46c2c79530368c7a76e4808ff7263970029f38bcd544a9d43722ed0828527"
+source = "git+https://github.com/eeyun/heim?branch=eeyun/proc_sys_cfg#eebcfb6849adf70a6aa06701b9d8fb70e80e08fc"
 dependencies = [
- "cfg-if 0.1.10",
- "core-foundation",
+ "cfg-if 1.0.0",
+ "core-foundation 0.9.1",
  "futures-core",
  "futures-util",
  "lazy_static",
  "libc",
  "mach",
- "nix",
+ "nix 0.19.0",
  "pin-utils",
- "uom 0.28.0",
+ "uom",
  "winapi 0.3.9",
 ]
 
 [[package]]
 name = "heim-cpu"
 version = "0.1.0-beta.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "73b1442359831aa671aa931f0a084aab210e77b1330ded78f1e60cc305abc4bb"
+source = "git+https://github.com/eeyun/heim?branch=eeyun/proc_sys_cfg#eebcfb6849adf70a6aa06701b9d8fb70e80e08fc"
 dependencies = [
- "cfg-if 0.1.10",
+ "cfg-if 1.0.0",
  "futures 0.3.5",
  "glob 0.3.0",
  "heim-common",
@@ -2426,12 +2431,11 @@ dependencies = [
 [[package]]
 name = "heim-disk"
 version = "0.1.0-beta.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8c650cc53da13cb4027eba907bfeff7c764d801e83fd833e48b513c38ed78368"
+source = "git+https://github.com/eeyun/heim?branch=eeyun/proc_sys_cfg#eebcfb6849adf70a6aa06701b9d8fb70e80e08fc"
 dependencies = [
  "bitflags",
- "cfg-if 0.1.10",
- "core-foundation",
+ "cfg-if 1.0.0",
+ "core-foundation 0.9.1",
  "heim-common",
  "heim-runtime",
  "libc",
@@ -2443,10 +2447,9 @@ dependencies = [
 [[package]]
 name = "heim-host"
 version = "0.1.0-beta.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "79cce3ce658bd45e510ff0a2fb5c668cbe1a7368929fd1db123741c99fd6902e"
+source = "git+https://github.com/eeyun/heim?branch=eeyun/proc_sys_cfg#eebcfb6849adf70a6aa06701b9d8fb70e80e08fc"
 dependencies = [
- "cfg-if 0.1.10",
+ "cfg-if 1.0.0",
  "heim-common",
  "heim-runtime",
  "lazy_static",
@@ -2461,10 +2464,9 @@ dependencies = [
 [[package]]
 name = "heim-memory"
 version = "0.1.0-beta.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "edf21693fc5ebcae37997230b90876687bcf6e53d243af988a5a89215a3c2578"
+source = "git+https://github.com/eeyun/heim?branch=eeyun/proc_sys_cfg#eebcfb6849adf70a6aa06701b9d8fb70e80e08fc"
 dependencies = [
- "cfg-if 0.1.10",
+ "cfg-if 1.0.0",
  "heim-common",
  "heim-runtime",
  "lazy_static",
@@ -2476,26 +2478,24 @@ dependencies = [
 [[package]]
 name = "heim-net"
 version = "0.1.0-beta.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "59da1108e732afcda77e1429b5d0ce648b9a31d1f8cf385108b83bea4cf91342"
+source = "git+https://github.com/eeyun/heim?branch=eeyun/proc_sys_cfg#eebcfb6849adf70a6aa06701b9d8fb70e80e08fc"
 dependencies = [
  "bitflags",
- "cfg-if 0.1.10",
+ "cfg-if 1.0.0",
  "heim-common",
  "heim-runtime",
  "libc",
  "macaddr",
- "nix",
+ "nix 0.19.0",
 ]
 
 [[package]]
 name = "heim-process"
 version = "0.1.1-beta.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fd969deb2a89a488b6a9bf18a65923ae4cdef6b128fa2dedb74ef5c694deb5ae"
+source = "git+https://github.com/eeyun/heim?branch=eeyun/proc_sys_cfg#eebcfb6849adf70a6aa06701b9d8fb70e80e08fc"
 dependencies = [
  "async-trait",
- "cfg-if 0.1.10",
+ "cfg-if 1.0.0",
  "darwin-libproc",
  "futures 0.3.5",
  "heim-common",
@@ -2508,7 +2508,7 @@ dependencies = [
  "mach",
  "memchr",
  "ntapi",
- "ordered-float 1.0.2",
+ "ordered-float",
  "smol",
  "winapi 0.3.9",
 ]
@@ -2516,22 +2516,20 @@ dependencies = [
 [[package]]
 name = "heim-runtime"
 version = "0.1.0-beta.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "906dd26ed2eb6b9f5f0dc3dfc04caeb82785ccc05a3b3326e4c841613451acc7"
+source = "git+https://github.com/eeyun/heim?branch=eeyun/proc_sys_cfg#eebcfb6849adf70a6aa06701b9d8fb70e80e08fc"
 dependencies = [
  "futures 0.3.5",
  "futures-timer",
+ "once_cell",
  "smol",
- "version-sync",
 ]
 
 [[package]]
 name = "heim-sensors"
 version = "0.1.0-beta.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5cdae0cfeffcc728b469424c937abaa286a0d89e2a0c347c51eaddc60c029144"
+source = "git+https://github.com/eeyun/heim?branch=eeyun/proc_sys_cfg#eebcfb6849adf70a6aa06701b9d8fb70e80e08fc"
 dependencies = [
- "cfg-if 0.1.10",
+ "cfg-if 1.0.0",
  "heim-common",
  "heim-runtime",
 ]
@@ -2539,10 +2537,9 @@ dependencies = [
 [[package]]
 name = "heim-virt"
 version = "0.1.0-beta.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d5953a27f3788cb0e0934ab8c275cbd6da5d44d5dd37656d04076602b457c2a1"
+source = "git+https://github.com/eeyun/heim?branch=eeyun/proc_sys_cfg#eebcfb6849adf70a6aa06701b9d8fb70e80e08fc"
 dependencies = [
- "cfg-if 0.1.10",
+ "cfg-if 1.0.0",
  "futures 0.3.5",
  "heim-common",
  "heim-runtime",
@@ -3247,7 +3244,7 @@ dependencies = [
  "lucet-module",
  "lucet-runtime-macros",
  "memoffset",
- "nix",
+ "nix 0.17.0",
  "num-derive",
  "num-traits",
  "rand 0.7.3",
@@ -3281,7 +3278,7 @@ dependencies = [
  "lucet-runtime-internals",
  "lucet-wasi-generate",
  "lucet-wiggle",
- "nix",
+ "nix 0.17.0",
  "rand 0.6.5",
  "wasi-common",
 ]
@@ -3758,7 +3755,7 @@ dependencies = [
  "base64 0.13.0",
  "base64-url",
  "fastrand",
- "futures-lite 1.11.1",
+ "futures-lite",
  "itoa",
  "json",
  "log",
@@ -3801,6 +3798,18 @@ dependencies = [
  "cfg-if 0.1.10",
  "libc",
  "void",
+]
+
+[[package]]
+name = "nix"
+version = "0.19.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "85db2feff6bf70ebc3a4793191517d5f0331100a2f10f9bf93b5e5214f32b7b7"
+dependencies = [
+ "bitflags",
+ "cc",
+ "cfg-if 0.1.10",
+ "libc",
 ]
 
 [[package]]
@@ -3925,9 +3934,9 @@ dependencies = [
 
 [[package]]
 name = "num-rational"
-version = "0.2.4"
+version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5c000134b5dbf44adc5cb772486d335293351644b801551abe8f75c84cfa4aef"
+checksum = "12ac428b1cb17fce6f731001d307d351ec70a6d202fc2e60f7d4c5e42d8f4f07"
 dependencies = [
  "autocfg 1.0.1",
  "num-integer",
@@ -4085,15 +4094,6 @@ dependencies = [
 
 [[package]]
 name = "ordered-float"
-version = "1.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "18869315e81473c951eb56ad5558bbc56978562d3ecfb87abb7a1e944cea4518"
-dependencies = [
- "num-traits",
-]
-
-[[package]]
-name = "ordered-float"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9fe9037165d7023b1228bc4ae9a2fa1a2b0095eca6c2998c624723dfd01314a5"
@@ -4129,12 +4129,6 @@ checksum = "53cdc5b785b7a58c5aad8216b3dfa114df64b0b06ae6e1501cef91df2fbdf8f9"
 dependencies = [
  "winapi 0.3.9",
 ]
-
-[[package]]
-name = "parking"
-version = "1.0.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6cb300f271742d4a2a66c01b6b2fa0c83dfebd2e0bf11addb879a3547b4ed87c"
 
 [[package]]
 name = "parking"
@@ -4362,9 +4356,9 @@ checksum = "d36492546b6af1463394d46f0c834346f31548646f6ba10849802c9c9a27ac33"
 
 [[package]]
 name = "platforms"
-version = "0.2.1"
+version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "feb3b2b1033b8a60b4da6ee470325f887758c95d5320f52f9ce0df055a55940e"
+checksum = "cc77a3fc329982cbf3ea772aa265b742a550998bad65747c630406ee52dac425"
 
 [[package]]
 name = "plotters"
@@ -4564,17 +4558,6 @@ checksum = "1834f67c0697c001304b75be76f67add9c89742eda3a085ad8ee0bb38c3417aa"
 dependencies = [
  "bytes 0.5.6",
  "prost",
-]
-
-[[package]]
-name = "pulldown-cmark"
-version = "0.7.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ca36dea94d187597e104a5c8e4b07576a8a45aa5db48a65e12940d3eb7461f55"
-dependencies = [
- "bitflags",
- "memchr",
- "unicase",
 ]
 
 [[package]]
@@ -5448,8 +5431,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "64808902d7d99f78eaddd2b4e2509713babc3dc3c85ad6f4c447680f3c01e535"
 dependencies = [
  "bitflags",
- "core-foundation",
- "core-foundation-sys",
+ "core-foundation 0.7.0",
+ "core-foundation-sys 0.7.0",
  "libc",
  "security-framework-sys 0.4.3",
 ]
@@ -5461,8 +5444,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ad502866817f0575705bd7be36e2b2535cc33262d493aa733a2ec862baa2bc2b"
 dependencies = [
  "bitflags",
- "core-foundation",
- "core-foundation-sys",
+ "core-foundation 0.7.0",
+ "core-foundation-sys 0.7.0",
  "libc",
  "security-framework-sys 1.0.0",
 ]
@@ -5473,7 +5456,7 @@ version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "17bf11d99252f512695eb468de5516e5cf75455521e69dfe343f3b74e4748405"
 dependencies = [
- "core-foundation-sys",
+ "core-foundation-sys 0.7.0",
  "libc",
 ]
 
@@ -5483,7 +5466,7 @@ version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "51ceb04988b17b6d1dcd555390fa822ca5637b4a14e1f5099f13d351bed4d6c7"
 dependencies = [
- "core-foundation-sys",
+ "core-foundation-sys 0.7.0",
  "libc",
 ]
 
@@ -5512,12 +5495,6 @@ name = "semver-parser"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "388a1df253eca08550bef6c72392cfe7c30914bf41df5269b68cbd6ff8f570a3"
-
-[[package]]
-name = "semver-parser"
-version = "0.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b46e1121e8180c12ff69a742aabc4f310542b6ccb69f1691689ac17fdf8618aa"
 
 [[package]]
 name = "semver-parser"
@@ -5553,7 +5530,7 @@ version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f3a1a3341211875ef120e117ea7fd5228530ae7e7036a779fdc9117be6b3282c"
 dependencies = [
- "ordered-float 2.0.0",
+ "ordered-float",
  "serde",
 ]
 
@@ -5785,23 +5762,20 @@ checksum = "fbee7696b84bbf3d89a1c2eccff0850e3047ed46bfcd2e92c29a2d074d57e252"
 
 [[package]]
 name = "smol"
-version = "0.1.18"
+version = "1.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "620cbb3c6e34da57d3a248cda0cd01cd5848164dc062e764e65d06fe3ea7aed5"
+checksum = "aaf8ded16994c0ae59596c6e4733c76faeb0533c26fd5ca1b1bc89271a049a66"
 dependencies = [
- "async-task 3.0.0",
- "blocking 0.4.7",
- "concurrent-queue",
- "fastrand",
- "futures-io",
- "futures-util",
- "libc",
+ "async-channel",
+ "async-executor",
+ "async-fs",
+ "async-io",
+ "async-lock",
+ "async-net",
+ "async-process",
+ "blocking",
+ "futures-lite",
  "once_cell",
- "scoped-tls",
- "slab",
- "socket2",
- "wepoll-sys-stjepang",
- "winapi 0.3.9",
 ]
 
 [[package]]
@@ -6854,21 +6828,11 @@ checksum = "a156c684c91ea7d62626509bce3cb4e1d9ed5c4d978f7b4352658f96a4c26b4a"
 
 [[package]]
 name = "uom"
-version = "0.28.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "627142a1043c2d460613232ce4f7e322e756636e000c0f1d1f2e779cb431358a"
-dependencies = [
- "num-rational",
- "num-traits",
- "typenum",
-]
-
-[[package]]
-name = "uom"
 version = "0.30.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e76503e636584f1e10b9b3b9498538279561adcef5412927ba00c2b32c4ce5ed"
 dependencies = [
+ "num-rational",
  "num-traits",
  "typenum",
 ]
@@ -6899,7 +6863,7 @@ checksum = "e394bc3ecd454f68f04803a7b527b36956413120fa06420dc1329cda49340763"
 dependencies = [
  "bitflags",
  "libc",
- "nix",
+ "nix 0.17.0",
  "thiserror",
  "userfaultfd-sys",
 ]
@@ -7006,6 +6970,7 @@ dependencies = [
  "grok",
  "headers",
  "heim",
+ "heim-runtime",
  "hex",
  "hostname",
  "http",
@@ -7035,7 +7000,7 @@ dependencies = [
  "metrics-util",
  "mongodb",
  "nats",
- "nix",
+ "nix 0.17.0",
  "nom 5.1.2",
  "notify",
  "num-format",
@@ -7108,7 +7073,7 @@ dependencies = [
  "tracing-tower",
  "tui",
  "typetag",
- "uom 0.30.0",
+ "uom",
  "url",
  "uuid 0.8.1",
  "vector-api-client",
@@ -7145,21 +7110,6 @@ dependencies = [
  "serde",
  "serde_json",
  "tracing 0.1.21",
-]
-
-[[package]]
-name = "version-sync"
-version = "0.9.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c7b77d2a6f56988f7bb54102fe73ab963df4e7374b58298a7efa1361f681e0e2"
-dependencies = [
- "proc-macro2 1.0.24",
- "pulldown-cmark",
- "regex",
- "semver-parser 0.9.0",
- "syn 1.0.48",
- "toml",
- "url",
 ]
 
 [[package]]
