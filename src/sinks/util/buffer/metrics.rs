@@ -12,11 +12,8 @@ use std::{
 #[derive(Clone, Debug)]
 pub struct MetricEntry(pub Metric);
 
-impl Eq for MetricEntry {}
-
-impl Hash for MetricEntry {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        let metric = &self.0;
+impl MetricEntry {
+    pub(crate) fn metric_hash<H: Hasher>(metric: &Metric, state: &mut H) {
         std::mem::discriminant(&metric.value).hash(state);
         metric.name.hash(state);
         metric.kind.hash(state);
@@ -43,19 +40,31 @@ impl Hash for MetricEntry {
             _ => {}
         }
     }
+
+    pub(crate) fn metric_eq(metric1: &Metric, metric2: &Metric) -> bool {
+        let mut state = DefaultHasher::new();
+        Self::metric_hash(metric1, &mut state);
+        let hash1 = state.finish();
+
+        let mut state = DefaultHasher::new();
+        Self::metric_hash(metric2, &mut state);
+        let hash2 = state.finish();
+
+        hash1 == hash2
+    }
+}
+
+impl Eq for MetricEntry {}
+
+impl Hash for MetricEntry {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        Self::metric_hash(&self.0, state)
+    }
 }
 
 impl PartialEq for MetricEntry {
     fn eq(&self, other: &Self) -> bool {
-        let mut state = DefaultHasher::new();
-        self.hash(&mut state);
-        let hash1 = state.finish();
-
-        let mut state = DefaultHasher::new();
-        other.hash(&mut state);
-        let hash2 = state.finish();
-
-        hash1 == hash2
+        Self::metric_eq(&self.0, &other.0)
     }
 }
 

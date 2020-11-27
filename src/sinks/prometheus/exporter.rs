@@ -1,16 +1,17 @@
+use super::collector::{self, MetricCollector as _};
 use crate::{
     buffers::Acker,
     config::{DataType, GenerateConfig, Resource, SinkConfig, SinkContext, SinkDescription},
-    event::metric::MetricKind,
+    event::metric::{Metric, MetricKind},
     internal_events::PrometheusServerRequestComplete,
     sinks::{
-        util::{statistic::validate_quantiles, MetricEntry, StreamSink},
+        util::{statistic::validate_quantiles, MetricEntry as BufferMetricEntry, StreamSink},
         Healthcheck, VectorSink,
     },
+    stream::tripwire_handler,
     Event,
 };
 use async_trait::async_trait;
-use chrono::Utc;
 use futures::{future, stream::BoxStream, FutureExt, StreamExt, TryFutureExt};
 use hyper::{
     header::HeaderValue,
@@ -23,12 +24,12 @@ use snafu::Snafu;
 use std::{
     collections::HashSet,
     convert::Infallible,
+    hash::{Hash, Hasher},
     net::SocketAddr,
     sync::{Arc, RwLock},
+    time::{Duration, Instant},
 };
 use stream_cancel::{Trigger, Tripwire};
-
-use super::collector::{self, MetricCollector as _};
 
 const MIN_FLUSH_PERIOD_SECS: u64 = 1;
 
@@ -151,16 +152,44 @@ struct PrometheusExporter {
     server_shutdown_trigger: Option<Trigger>,
     config: PrometheusExporterConfig,
     metrics: Arc<RwLock<IndexSet<MetricEntry>>>,
-    last_flush_timestamp: Arc<RwLock<i64>>,
     acker: Acker,
 }
+
+#[derive(Debug)]
+struct MetricEntry {
+    pub metric: Metric,
+    pub next_flush: Instant,
+}
+
+impl MetricEntry {
+    fn new(metric: Metric, next_flush: Instant) -> Self {
+        Self { metric, next_flush }
+    }
+
+    fn is_expired(&self, time: Instant) -> bool {
+        self.next_flush < time
+    }
+}
+
+impl Hash for MetricEntry {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        BufferMetricEntry::metric_hash(&self.metric, state)
+    }
+}
+
+impl PartialEq for MetricEntry {
+    fn eq(&self, other: &Self) -> bool {
+        BufferMetricEntry::metric_eq(&self.metric, &other.metric)
+    }
+}
+
+impl Eq for MetricEntry {}
 
 fn handle(
     req: Request<Body>,
     default_namespace: Option<&str>,
     buckets: &[f64],
     quantiles: &[f64],
-    expired: bool,
     metrics: &IndexSet<MetricEntry>,
 ) -> Response<Body> {
     let mut response = Response::new(Body::empty());
@@ -172,14 +201,21 @@ fn handle(
             // output headers only once
             let mut processed_headers = HashSet::new();
 
-            for metric in metrics {
-                let name = &metric.0.name;
+            let now = Instant::now();
+            for item in metrics {
+                let name = &item.metric.name;
                 if !processed_headers.contains(&name) {
-                    s.encode_header(default_namespace, &metric.0);
+                    s.encode_header(default_namespace, &item.metric);
                     processed_headers.insert(name);
                 };
 
-                s.encode_metric(default_namespace, &buckets, quantiles, expired, &metric.0);
+                s.encode_metric(
+                    default_namespace,
+                    &buckets,
+                    quantiles,
+                    item.is_expired(now),
+                    &item.metric,
+                );
             }
 
             *response.body_mut() = s.result.into();
@@ -203,7 +239,6 @@ impl PrometheusExporter {
             server_shutdown_trigger: None,
             config,
             metrics: Arc::new(RwLock::new(IndexSet::new())),
-            last_flush_timestamp: Arc::new(RwLock::new(Utc::now().timestamp())),
             acker,
         }
     }
@@ -217,23 +252,16 @@ impl PrometheusExporter {
         let default_namespace = self.config.default_namespace.clone();
         let buckets = self.config.buckets.clone();
         let quantiles = self.config.quantiles.clone();
-        let last_flush_timestamp = Arc::clone(&self.last_flush_timestamp);
-        let flush_period_secs = self.config.flush_period_secs;
 
         let new_service = make_service_fn(move |_| {
             let metrics = Arc::clone(&metrics);
             let default_namespace = default_namespace.clone();
             let buckets = buckets.clone();
             let quantiles = quantiles.clone();
-            let last_flush_timestamp = Arc::clone(&last_flush_timestamp);
-            let flush_period_secs = flush_period_secs;
 
             async move {
                 Ok::<_, Infallible>(service_fn(move |req| {
                     let metrics = metrics.read().unwrap();
-                    let last_flush_timestamp = last_flush_timestamp.read().unwrap();
-                    let interval = (Utc::now().timestamp() - *last_flush_timestamp) as u64;
-                    let expired = interval > flush_period_secs;
 
                     let response = info_span!(
                         "prometheus_server",
@@ -246,7 +274,6 @@ impl PrometheusExporter {
                             default_namespace.as_deref(),
                             &buckets,
                             &quantiles,
-                            expired,
                             &metrics,
                         )
                     });
@@ -264,7 +291,7 @@ impl PrometheusExporter {
 
         let server = Server::bind(&self.config.address)
             .serve(new_service)
-            .with_graceful_shutdown(tripwire.then(crate::stream::tripwire_handler))
+            .with_graceful_shutdown(tripwire.then(tripwire_handler))
             .map_err(|error| eprintln!("Server error: {}", error));
 
         tokio::spawn(server);
@@ -280,28 +307,26 @@ impl StreamSink for PrometheusExporter {
             let item = event.into_metric();
             let mut metrics = self.metrics.write().unwrap();
 
+            let now = Instant::now();
+            let next_flush = now + Duration::from_secs(self.config.flush_period_secs);
             match item.kind {
                 MetricKind::Incremental => {
-                    let new = MetricEntry(item.to_absolute());
-                    if let Some(MetricEntry(mut existing)) = metrics.take(&new) {
-                        if item.value.is_set() {
-                            // sets need to be expired from time to time
-                            // because otherwise they could grow infinitelly
-                            let now = Utc::now().timestamp();
-                            let interval = now - *self.last_flush_timestamp.read().unwrap();
-                            if interval > self.config.flush_period_secs as i64 {
-                                *self.last_flush_timestamp.write().unwrap() = now;
-                                existing.reset();
-                            }
+                    let new = MetricEntry::new(item.to_absolute(), next_flush);
+                    if let Some(mut entry) = metrics.take(&new) {
+                        // sets need to be expired from time to time
+                        // because otherwise they could grow infinitelly
+                        if item.value.is_set() && entry.is_expired(now) {
+                            entry.metric.reset();
+                            entry.next_flush = next_flush;
                         }
-                        existing.add(&item);
-                        metrics.insert(MetricEntry(existing));
+                        entry.metric.add(&item);
+                        metrics.insert(entry);
                     } else {
                         metrics.insert(new);
                     };
                 }
                 MetricKind::Absolute => {
-                    let new = MetricEntry(item);
+                    let new = MetricEntry::new(item, next_flush);
                     metrics.replace(new);
                 }
             };
@@ -326,47 +351,111 @@ mod tests {
 mod integration_tests {
     use super::*;
     use crate::{
-        config::SinkContext,
         event::{Metric, MetricValue},
         http::HttpClient,
+        test_util::{random_string, trace_init},
     };
-    use futures::{stream, task::Poll};
+    use chrono::Utc;
     use serde_json::Value;
-    use std::{pin::Pin, task::Context};
-    use tokio::time::Duration;
+    use tokio::{sync::mpsc, time};
+
+    const PROMETHEUS_ADDRESS: &str = "127.0.0.1:9101";
 
     #[tokio::test]
-    async fn prometheus_scrapes_metrics() {
-        crate::test_util::trace_init();
+    async fn prometheus_metrics() {
+        trace_init();
 
+        prometheus_scrapes_metrics().await;
+        time::delay_for(time::Duration::from_millis(500)).await;
+        reset_on_flush_preiod().await;
+    }
+
+    async fn prometheus_scrapes_metrics() {
         let start = Utc::now().timestamp();
-        let address = "127.0.0.1:9101";
 
         let config = PrometheusExporterConfig {
-            address: address.parse().unwrap(),
+            address: PROMETHEUS_ADDRESS.parse().unwrap(),
             ..Default::default()
         };
-
         let (sink, _) = config.build(SinkContext::new_test()).await.unwrap();
+        let (tx, rx) = mpsc::unbounded_channel();
+        tokio::spawn(sink.run(Box::pin(rx)));
 
-        let (name, events) = make_gauges(123.4, 1);
-        let stream = DeliverEventsAndPause { events };
-        tokio::spawn(sink.run(stream));
+        let (name, event) = create_metric_gauge(None, 123.4);
+        tx.send(event).expect("Failed to send.");
+
         // Wait a bit for the prometheus server to scrape the metrics
-        tokio::time::delay_for(Duration::from_secs(2)).await;
+        time::delay_for(time::Duration::from_secs(2)).await;
 
         // Now try to download them from prometheus
         let result = prometheus_query(&name).await;
 
         let data = &result["data"]["result"][0];
         assert_eq!(data["metric"]["__name__"], Value::String(name));
-        assert_eq!(data["metric"]["instance"], Value::String(address.into()));
+        assert_eq!(
+            data["metric"]["instance"],
+            Value::String(PROMETHEUS_ADDRESS.into())
+        );
         assert_eq!(
             data["metric"]["some_tag"],
             Value::String("some_value".into())
         );
         assert!(data["value"][0].as_f64().unwrap() >= start as f64);
         assert_eq!(data["value"][1], Value::String("123.4".into()));
+    }
+
+    async fn reset_on_flush_preiod() {
+        let config = PrometheusExporterConfig {
+            address: PROMETHEUS_ADDRESS.parse().unwrap(),
+            flush_period_secs: 3,
+            ..Default::default()
+        };
+        let (sink, _) = config.build(SinkContext::new_test()).await.unwrap();
+        let (tx, rx) = mpsc::unbounded_channel();
+        tokio::spawn(sink.run(Box::pin(rx)));
+
+        let (name1, event) = create_metric_set(None, vec!["0", "1", "2"]);
+        tx.send(event).expect("Failed to send.");
+        let (name2, event) = create_metric_set(None, vec!["3", "4", "5"]);
+        tx.send(event).expect("Failed to send.");
+
+        // Wait a bit for the prometheus server to scrape the metrics
+        time::delay_for(time::Duration::from_secs(2)).await;
+
+        // Now try to download them from prometheus
+        let result = prometheus_query(&name1).await;
+        assert_eq!(
+            result["data"]["result"][0]["value"][1],
+            Value::String("3".into())
+        );
+        let result = prometheus_query(&name2).await;
+        assert_eq!(
+            result["data"]["result"][0]["value"][1],
+            Value::String("3".into())
+        );
+
+        // Wait a bit for expired metrics
+        time::delay_for(time::Duration::from_secs(2)).await;
+
+        let (name1, event) = create_metric_set(Some(name1), vec!["6", "7"]);
+        tx.send(event).expect("Failed to send.");
+        let (name2, event) = create_metric_set(Some(name2), vec!["8", "9"]);
+        tx.send(event).expect("Failed to send.");
+
+        // Wait a bit for the prometheus server to scrape the metrics
+        time::delay_for(time::Duration::from_secs(2)).await;
+
+        // Now try to download them from prometheus
+        let result = prometheus_query(&name1).await;
+        assert_eq!(
+            result["data"]["result"][0]["value"][1],
+            Value::String("2".into())
+        );
+        let result = prometheus_query(&name2).await;
+        assert_eq!(
+            result["data"]["result"][0]["value"][1],
+            Value::String("2".into())
+        );
     }
 
     async fn prometheus_query(query: &str) -> Value {
@@ -384,44 +473,38 @@ mod integration_tests {
         let result = hyper::body::to_bytes(result.into_body())
             .await
             .expect("Error fetching body");
-        let result = String::from_utf8_lossy(&result).into_owned();
-        serde_json::from_str(&result).expect("Invalid JSON from prometheus")
+        let result = String::from_utf8_lossy(&result);
+        serde_json::from_str(result.as_ref()).expect("Invalid JSON from prometheus")
     }
 
-    #[pin_project::pin_project]
-    struct DeliverEventsAndPause<I> {
-        events: I,
+    fn create_metric_gauge(name: Option<String>, value: f64) -> (String, Event) {
+        create_metric(name, MetricValue::Gauge { value })
     }
 
-    impl<I: Iterator<Item = Event>> stream::Stream for DeliverEventsAndPause<I> {
-        type Item = Event;
-        fn poll_next(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-            let this = self.project();
-            match this.events.next() {
-                Some(event) => Poll::Ready(Some(event)),
-                None => Poll::Pending,
-            }
+    fn create_metric_set(name: Option<String>, values: Vec<&'static str>) -> (String, Event) {
+        create_metric(
+            name,
+            MetricValue::Set {
+                values: values.into_iter().map(Into::into).collect(),
+            },
+        )
+    }
+
+    fn create_metric(name: Option<String>, value: MetricValue) -> (String, Event) {
+        let name = name.unwrap_or_else(|| format!("vector_set_{}", random_string(16)));
+        let event = Metric {
+            name: name.clone(),
+            namespace: None,
+            timestamp: None,
+            tags: Some(
+                vec![("some_tag".to_owned(), "some_value".to_owned())]
+                    .into_iter()
+                    .collect(),
+            ),
+            kind: MetricKind::Incremental,
+            value,
         }
-    }
-
-    fn make_gauges(value: f64, count: usize) -> (String, impl Iterator<Item = Event>) {
-        let name = format!("gauge_{}", crate::test_util::random_string(16));
-        let name2 = name.clone();
-        let events = (0..count).map(move |_| {
-            Metric {
-                name: name2.clone(),
-                namespace: None,
-                timestamp: None,
-                tags: Some(
-                    vec![("some_tag".into(), "some_value".into())]
-                        .into_iter()
-                        .collect(),
-                ),
-                kind: MetricKind::Absolute,
-                value: MetricValue::Gauge { value },
-            }
-            .into()
-        });
-        (name, events)
+        .into();
+        (name, event)
     }
 }
