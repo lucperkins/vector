@@ -79,6 +79,8 @@ impl fmt::Display for Rule {
             ident,
             if_statement,
             integer,
+            kv_pair,
+            map,
             multiplication,
             not,
             null,

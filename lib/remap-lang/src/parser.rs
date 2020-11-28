@@ -2,14 +2,15 @@
 
 use crate::{
     expression::{
-        Arithmetic, Assignment, Block, Function, IfStatement, Literal, Noop, Not, Path, Target,
-        Variable,
+        Arithmetic, Assignment, Block, Function, IfStatement, Literal, Map, Noop, Not, Path,
+        Target, Variable,
     },
     function::Argument,
     state, Error, Expr, Function as Fn, Operator, Result, Value,
 };
 use pest::iterators::{Pair, Pairs};
 use regex::{Regex, RegexBuilder};
+use std::collections::BTreeMap;
 use std::str::FromStr;
 
 #[derive(pest_derive::Parser)]
@@ -213,18 +214,37 @@ impl Parser<'_> {
     }
 
     /// Parse a [`Value`] into a [`Literal`] expression.
-    fn value_from_pair(&self, pair: Pair<R>) -> Result<Expr> {
+    fn value_from_pair(&mut self, pair: Pair<R>) -> Result<Expr> {
         Ok(match pair.as_rule() {
-            R::string => {
-                let string = pair.into_inner().next().ok_or(e(R::string))?;
-                Expr::from(Literal::from(self.escaped_string_from_pair(string)?))
-            }
+            R::string => Expr::from(Literal::from(self.string_from_pair(pair)?)),
             R::null => Expr::from(Literal::from(Value::Null)),
             R::boolean => Expr::from(Literal::from(pair.as_str() == "true")),
             R::integer => Expr::from(Literal::from(pair.as_str().parse::<i64>().unwrap())),
             R::float => Expr::from(Literal::from(pair.as_str().parse::<f64>().unwrap())),
+            R::map => self.map_from_pair(pair)?,
             _ => return Err(e(R::value)),
         })
+    }
+
+    fn map_from_pair(&mut self, pair: Pair<R>) -> Result<Expr> {
+        let map = pair
+            .into_inner()
+            .map(|pair| self.kv_from_pair(pair))
+            .collect::<Result<BTreeMap<_, _>>>()?;
+
+        Ok(Map::new(map).into())
+    }
+
+    fn kv_from_pair(&mut self, pair: Pair<R>) -> Result<(String, Expr)> {
+        let mut inner = pair.into_inner();
+
+        let pair = inner.next().ok_or(e(R::kv_pair))?;
+        let key = self.string_from_pair(pair)?;
+
+        let pair = inner.next().ok_or(e(R::kv_pair))?;
+        let expr = self.expression_from_pair(pair)?;
+
+        Ok((key, expr))
     }
 
     /// Parse function call expressions.
@@ -340,10 +360,7 @@ impl Parser<'_> {
         let field = pair.into_inner().next().ok_or(e(Rule::path_field))?;
 
         match field.as_rule() {
-            R::string => {
-                let string = field.into_inner().next().ok_or(e(R::string))?;
-                self.escaped_string_from_pair(string)
-            }
+            R::string => self.string_from_pair(field),
             R::ident => Ok(field.as_str().to_owned()),
             _ => Err(e(Rule::path_field)),
         }
@@ -360,6 +377,11 @@ impl Parser<'_> {
         let ident = pair.into_inner().next().ok_or(e(R::variable))?;
 
         Ok(Expr::from(Variable::new(ident.as_str().to_owned())))
+    }
+
+    fn string_from_pair(&self, pair: Pair<R>) -> Result<String> {
+        let string = pair.into_inner().next().ok_or(e(R::string))?;
+        self.escaped_string_from_pair(string)
     }
 
     fn escaped_string_from_pair(&self, pair: Pair<R>) -> Result<String> {
@@ -475,7 +497,7 @@ mod tests {
             ),
             (
                 "if { del(.foo) } else { del(.bar) }",
-                vec![" 1:4\n", "= expected not"],
+                vec![" 1:6\n", "= expected string"],
             ),
             (
                 "if .foo > .bar { del(.foo) } else { .bar = .baz",
