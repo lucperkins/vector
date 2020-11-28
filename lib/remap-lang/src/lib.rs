@@ -240,6 +240,8 @@ mod tests {
             (r#"false || null"#, Ok(()), Ok(().into())),
             (r#"null || "foo""#, Ok(()), Ok("foo".into())),
             (r#". = "bar""#, Ok(()), Ok("bar".into())),
+            (r#"{ "foo" }"#, Ok(()), Ok("foo".into())),
+            (r#"{ "foo": "bar" }"#, Ok(()), Ok(map!["foo": "bar"].into())),
             (r#"{ "foo": true, "bar": true, "baz": false }"#, Ok(()), Ok(map!["foo": true, "bar": true, "baz": false].into())),
             (
                 r#"
