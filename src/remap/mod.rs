@@ -41,6 +41,12 @@ lazy_static! {
         Box::new(StripAnsiEscapeCodes),
         Box::new(Match),
         Box::new(Replace),
+        Box::new(IpToIpv6),
+        Box::new(Ipv6ToIpV4),
+        Box::new(IpCidrContains),
+        Box::new(IpSubnet),
+        Box::new(Exists),
+        Box::new(Compact),
     ];
 
     // List of both mutable, and immutable functions that can be loaded into a
