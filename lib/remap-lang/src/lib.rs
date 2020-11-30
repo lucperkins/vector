@@ -132,7 +132,7 @@ fn vec_path_to_string(path: &[Vec<String>]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::function::{Argument, ArgumentList};
+    use crate::function::ArgumentList;
     use std::collections::HashMap;
 
     #[test]
@@ -257,12 +257,12 @@ mod tests {
                 r#"array_printer(["foo", /bar/, 5, ["baz", 4.2], true, /qu+x/])"#,
                 Ok(()),
                 Ok(vec![
-                    r#"Expression(Bytes(b"foo"))"#,
-                    r#"Expression(Regex(bar))"#,
-                    r#"Expression(Integer(5))"#,
-                    r#"Expression([Bytes(b"baz"), Float(4.2)])"#,
-                    r#"Expression(Boolean(true))"#,
-                    r#"Expression(Regex(qu+x))"#,
+                    r#"Bytes(b"foo")"#,
+                    r#"Regex(bar)"#,
+                    r#"Integer(5)"#,
+                    r#"[Bytes(b"baz"), Float(4.2)]"#,
+                    r#"Boolean(true)"#,
+                    r#"Regex(qu+x)"#,
                 ].into()),
             ),
             (
@@ -270,7 +270,7 @@ mod tests {
                     .foo = ["foo", "bar"]
                     array_printer(.foo)
                 "#,
-                Err("remap error: function error: expected array literal argument, got expression"),
+                Err("remap error: unexpected expression: expected Array, got Path"),
                 Ok(().into()),
             ),
             (
@@ -290,7 +290,7 @@ mod tests {
             ),
             (
                 r#"enum_list_validator("qux")"#,
-                Err("remap error: function error: expected array literal argument, got expression"),
+                Err("remap error: unexpected expression: expected Array, got Literal"),
                 Ok(().into()),
             ),
         ];
@@ -330,6 +330,7 @@ mod tests {
 
     mod test_functions {
         use super::*;
+        use crate::expression::Array;
 
         #[derive(Debug, Clone)]
         pub(super) struct EnumValidator;
@@ -423,12 +424,13 @@ mod tests {
         }
 
         #[derive(Debug, Clone)]
-        struct ArrayPrinterFn(Vec<Argument>);
+        struct ArrayPrinterFn(Array);
         impl Expression for ArrayPrinterFn {
             fn execute(&self, _: &mut state::Program, _: &mut dyn Object) -> Result<Value> {
                 Ok(self
                     .0
-                    .iter()
+                    .clone()
+                    .into_iter()
                     .map(|v| format!("{:?}", v))
                     .collect::<Vec<_>>()
                     .into())
