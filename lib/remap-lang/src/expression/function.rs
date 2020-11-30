@@ -90,7 +90,7 @@ impl Function {
             })?;
 
             let argument =
-                expression::Argument::new(Box::new(argument), param.keyword, param.accepts, ident)
+                expression::Argument::new(Box::new(argument), param.accepts, param.keyword, ident)
                     .into();
 
             list.insert(param.keyword, argument);
