@@ -5,7 +5,7 @@ use crate::{
     event::metric::{Metric, MetricKind},
     internal_events::PrometheusServerRequestComplete,
     sinks::{
-        util::{statistic::validate_quantiles, MetricEntry as BufferMetricEntry, StreamSink},
+        util::{statistic::validate_quantiles, MetricEntry, StreamSink},
         Healthcheck, VectorSink,
     },
     stream::tripwire_handler,
@@ -25,7 +25,7 @@ use std::{
     collections::HashSet,
     convert::Infallible,
     hash::{Hash, Hasher},
-    net::SocketAddr,
+    net::{IpAddr, Ipv4Addr, SocketAddr},
     sync::{Arc, RwLock},
     time::{Duration, Instant},
 };
@@ -66,8 +66,6 @@ impl std::default::Default for PrometheusExporterConfig {
 }
 
 fn default_address() -> SocketAddr {
-    use std::net::{IpAddr, Ipv4Addr};
-
     SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 9598)
 }
 
@@ -151,46 +149,57 @@ impl SinkConfig for PrometheusCompatConfig {
 struct PrometheusExporter {
     server_shutdown_trigger: Option<Trigger>,
     config: PrometheusExporterConfig,
-    metrics: Arc<RwLock<IndexSet<MetricEntry>>>,
+    metrics: Arc<RwLock<IndexSet<ExpiringMetric>>>,
     acker: Acker,
 }
 
 #[derive(Debug)]
-struct MetricEntry {
-    pub metric: Metric,
-    pub next_flush: Instant,
+struct ExpiringMetric {
+    inner: MetricEntry,
+    next_flush: Instant,
 }
 
-impl MetricEntry {
+impl ExpiringMetric {
     fn new(metric: Metric, next_flush: Instant) -> Self {
-        Self { metric, next_flush }
+        Self {
+            inner: MetricEntry::new(metric),
+            next_flush,
+        }
     }
 
     fn is_expired(&self, time: Instant) -> bool {
         self.next_flush < time
     }
+
+    fn get_ref(&self) -> &Metric {
+        self.inner.get_ref()
+    }
+
+    fn get_mut(&mut self) -> &mut Metric {
+        self.inner.get_mut()
+    }
 }
 
-impl Hash for MetricEntry {
+impl Hash for ExpiringMetric {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        BufferMetricEntry::metric_hash(&self.metric, state)
+        self.inner.hash(state)
     }
 }
 
-impl PartialEq for MetricEntry {
+impl PartialEq for ExpiringMetric {
     fn eq(&self, other: &Self) -> bool {
-        BufferMetricEntry::metric_eq(&self.metric, &other.metric)
+        self.inner.eq(&other.inner)
     }
 }
 
-impl Eq for MetricEntry {}
+impl Eq for ExpiringMetric {}
 
 fn handle(
     req: Request<Body>,
     default_namespace: Option<&str>,
     buckets: &[f64],
     quantiles: &[f64],
-    metrics: &IndexSet<MetricEntry>,
+    metrics: &IndexSet<ExpiringMetric>,
 ) -> Response<Body> {
     let mut response = Response::new(Body::empty());
 
@@ -203,10 +212,10 @@ fn handle(
 
             let now = Instant::now();
             for item in metrics {
-                let name = &item.metric.name;
-                if !processed_headers.contains(&name) {
-                    s.encode_header(default_namespace, &item.metric);
-                    processed_headers.insert(name);
+                let metric = item.get_ref();
+                if !processed_headers.contains(&metric.name) {
+                    s.encode_header(default_namespace, metric);
+                    processed_headers.insert(&metric.name);
                 };
 
                 s.encode_metric(
@@ -214,7 +223,7 @@ fn handle(
                     &buckets,
                     quantiles,
                     item.is_expired(now),
-                    &item.metric,
+                    metric,
                 );
             }
 
@@ -311,22 +320,22 @@ impl StreamSink for PrometheusExporter {
             let next_flush = now + Duration::from_secs(self.config.flush_period_secs);
             match item.kind {
                 MetricKind::Incremental => {
-                    let new = MetricEntry::new(item.to_absolute(), next_flush);
+                    let new = ExpiringMetric::new(item.to_absolute(), next_flush);
                     if let Some(mut entry) = metrics.take(&new) {
                         // sets need to be expired from time to time
                         // because otherwise they could grow infinitelly
                         if item.value.is_set() && entry.is_expired(now) {
-                            entry.metric.reset();
+                            entry.get_mut().reset();
                             entry.next_flush = next_flush;
                         }
-                        entry.metric.add(&item);
+                        entry.get_mut().add(&item);
                         metrics.insert(entry);
                     } else {
                         metrics.insert(new);
                     };
                 }
                 MetricKind::Absolute => {
-                    let new = MetricEntry::new(item, next_flush);
+                    let new = ExpiringMetric::new(item, next_flush);
                     metrics.replace(new);
                 }
             };
