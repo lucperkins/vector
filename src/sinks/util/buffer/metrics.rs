@@ -21,6 +21,7 @@ impl MetricEntry {
         &self.0
     }
 
+    #[cfg(feature = "sinks-prometheus")]
     pub(crate) fn get_mut(&mut self) -> &mut Metric {
         &mut self.0
     }
