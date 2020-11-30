@@ -376,7 +376,7 @@ mod integration_tests {
 
         prometheus_scrapes_metrics().await;
         time::delay_for(time::Duration::from_millis(500)).await;
-        reset_on_flush_preiod().await;
+        reset_on_flush_period().await;
     }
 
     async fn prometheus_scrapes_metrics() {
@@ -413,7 +413,7 @@ mod integration_tests {
         assert_eq!(data["value"][1], Value::String("123.4".into()));
     }
 
-    async fn reset_on_flush_preiod() {
+    async fn reset_on_flush_period() {
         let config = PrometheusExporterConfig {
             address: PROMETHEUS_ADDRESS.parse().unwrap(),
             flush_period_secs: 3,
