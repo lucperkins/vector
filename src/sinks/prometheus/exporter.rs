@@ -444,7 +444,7 @@ mod integration_tests {
         );
 
         // Wait a bit for expired metrics
-        time::delay_for(time::Duration::from_secs(2)).await;
+        time::delay_for(time::Duration::from_secs(3)).await;
 
         let (name1, event) = create_metric_set(Some(name1), vec!["6", "7"]);
         tx.send(event).expect("Failed to send.");
