@@ -224,6 +224,7 @@ impl Parser<'_> {
             R::integer => Expr::from(Literal::from(pair.as_str().parse::<i64>().unwrap())),
             R::float => Expr::from(Literal::from(pair.as_str().parse::<f64>().unwrap())),
             R::array => self.array_from_pair(pair)?,
+            R::regex => Expr::from(Literal::from(self.regex_from_pair(pair)?)),
             _ => return Err(e(R::value)),
         })
     }
@@ -528,14 +529,9 @@ mod tests {
                 vec![" 1:21\n", "= expected path_segment"],
             ),
             (
-                // We cannot assign a regular expression to a field.
-                r#".foo = /ab/i"#,
-                vec![" 1:8\n", "= expected assignment, if_statement, not, or block"],
-            ),
-            (
                 // We cannot assign to a regular expression.
                 r#"/ab/ = .foo"#,
-                vec![" 1:1\n", "= expected EOI, assignment, if_statement, not, or block"],
+                vec![" 1:6\n", "= expected EOI, assignment, if_statement, not, operator_boolean_expr, operator_equality, operator_comparison, operator_addition, operator_multiplication, or block"],
             ),
         ];
 
