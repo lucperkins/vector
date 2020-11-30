@@ -154,15 +154,15 @@ impl Batch for MetricBuffer {
 
             match &item.value {
                 MetricValue::Counter { value } if item.kind.is_absolute() => {
-                    let new = MetricEntry(item.clone());
-                    if let Some(MetricEntry(Metric {
+                    let new = MetricEntry::new(item.clone());
+                    if let Some(Metric {
                         value: MetricValue::Counter { value: value0, .. },
                         ..
-                    })) = self.state.get(&new)
+                    }) = self.state.get(&new).map(MetricEntry::get_ref)
                     {
                         // Counters are disaggregated. We take the previous value from the state
                         // and emit the difference between previous and current as a Counter
-                        let delta = MetricEntry(Metric {
+                        let delta = MetricEntry::new(Metric {
                             name: item.name.to_string(),
                             namespace: item.namespace.clone(),
                             timestamp: item.timestamp,
@@ -174,9 +174,10 @@ impl Batch for MetricBuffer {
                         });
 
                         // The resulting Counters could be added up normally
-                        if let Some(MetricEntry(mut existing)) = self.metrics.take(&delta) {
-                            existing.add(&item);
-                            self.metrics.insert(MetricEntry(existing));
+                        if let Some(entry) = self.metrics.take(&delta) {
+                            let mut metric = entry.into_inner();
+                            metric.add(&item);
+                            self.metrics.insert(MetricEntry::new(metric));
                         } else {
                             self.metrics.insert(delta);
                         }
@@ -186,10 +187,11 @@ impl Batch for MetricBuffer {
                     }
                 }
                 MetricValue::Gauge { .. } if item.kind.is_incremental() => {
-                    let new = MetricEntry(item.to_absolute());
-                    if let Some(MetricEntry(mut existing)) = self.metrics.take(&new) {
-                        existing.add(&item);
-                        self.metrics.insert(MetricEntry(existing));
+                    let new = MetricEntry::new(item.to_absolute());
+                    if let Some(entry) = self.metrics.take(&new) {
+                        let mut metric = entry.into_inner();
+                        metric.add(&item);
+                        self.metrics.insert(MetricEntry::new(metric));
                     } else {
                         // If the metric is not present in active batch,
                         // then we look it up in permanent state, where we keep track
@@ -208,18 +210,19 @@ impl Batch for MetricBuffer {
                             }
                         };
                         initial.add(&item);
-                        self.metrics.insert(MetricEntry(initial));
+                        self.metrics.insert(MetricEntry::new(initial));
                     }
                 }
                 _metric if item.kind.is_absolute() => {
-                    let new = MetricEntry(item);
+                    let new = MetricEntry::new(item);
                     self.metrics.replace(new);
                 }
                 _ => {
-                    let new = MetricEntry(item.clone());
-                    if let Some(MetricEntry(mut existing)) = self.metrics.take(&new) {
-                        existing.add(&item);
-                        self.metrics.insert(MetricEntry(existing));
+                    let new = MetricEntry::new(item.clone());
+                    if let Some(entry) = self.metrics.take(&new) {
+                        let mut metric = entry.into_inner();
+                        metric.add(&item);
+                        self.metrics.insert(MetricEntry::new(metric));
                     } else {
                         self.metrics.insert(new);
                     }
