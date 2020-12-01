@@ -293,6 +293,16 @@ mod tests {
                 Err("remap error: unexpected expression: expected Array, got Literal"),
                 Ok(().into()),
             ),
+            (
+                r#"
+                    .foo        \
+                        =       \
+                        null || \
+                        "bar"
+                "#,
+                Ok(()),
+                Ok("bar".into()),
+            ),
         ];
 
         for (script, compile_expected, runtime_expected) in cases {
