@@ -1,5 +1,7 @@
-use crate::{parser, state, value, Error as E, Expr, Expression, Function, RemapError, TypeDef};
-use pest::Parser;
+use crate::{
+    parser::{Parser, Rule},
+    value, Error as E, Expr, Expression, Function, RemapError, TypeDef,
+};
 use std::fmt;
 
 #[derive(thiserror::Error, Clone, Debug, PartialEq)]
@@ -91,18 +93,9 @@ impl Program {
         function_definitions: &[Box<dyn Function>],
         constraint: Option<TypeConstraint>,
     ) -> Result<Self, RemapError> {
-        let pairs = parser::Parser::parse(parser::Rule::program, source)
-            .map_err(|s| E::Parser(s.to_string()))
-            .map_err(RemapError)?;
+        let mut parser = Parser::new(function_definitions);
 
-        let compiler_state = state::Compiler::default();
-
-        let mut parser = parser::Parser {
-            function_definitions,
-            compiler_state,
-        };
-
-        let expressions = parser.pairs_to_expressions(pairs).map_err(RemapError)?;
+        let expressions = parser.parse_source(Rule::program, source)?;
 
         // optional type constraint checking
         if let Some(constraint) = constraint {

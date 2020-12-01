@@ -5,13 +5,13 @@ use crate::{
         Arithmetic, Array, Assignment, Block, Function, IfStatement, Literal, Noop, Not, Path,
         Target, Variable,
     },
-    state, Error, Expr, Function as Fn, Operator, Result, Value,
+    state, Error as E, Expr, Function as Fn, Operator, Result, Value,
 };
 use pest::iterators::{Pair, Pairs};
 use regex::{Regex, RegexBuilder};
 use std::str::FromStr;
 
-#[derive(pest_derive::Parser)]
+#[derive(pest_derive::Parser, Default)]
 #[grammar = "../grammar.pest"]
 pub(super) struct Parser<'a> {
     pub function_definitions: &'a [Box<dyn Fn>],
@@ -19,6 +19,18 @@ pub(super) struct Parser<'a> {
 }
 
 type R = Rule;
+
+#[derive(thiserror::Error, Clone, Debug, PartialEq)]
+pub enum Error {
+    #[error("cannot assign regex to object")]
+    RegexAssignment,
+
+    #[error("regex error")]
+    Regex(#[from] regex::Error),
+
+    #[error(transparent)]
+    Pest(#[from] pest::error::Error<R>),
+}
 
 // Auto-generate a set of parser functions to parse different operations.
 macro_rules! operation_fns {
@@ -56,7 +68,21 @@ macro_rules! operation_fns {
     );
 }
 
-impl Parser<'_> {
+impl<'a> Parser<'a> {
+    pub fn new(function_definitions: &'a [Box<dyn Fn>]) -> Self {
+        Self {
+            function_definitions,
+            ..Default::default()
+        }
+    }
+
+    pub fn parse_source(&mut self, rule: R, source: &str) -> Result<Vec<Expr>> {
+        use pest::Parser;
+
+        let pairs = Self::parse(rule, source).map_err(|err| E::from(Error::from(err)))?;
+        self.pairs_to_expressions(pairs)
+    }
+
     /// Converts the set of known "root" rules into boxed [`Expression`] trait
     /// objects.
     pub(crate) fn pairs_to_expressions(&mut self, pairs: Pairs<R>) -> Result<Vec<Expr>> {
@@ -78,23 +104,52 @@ impl Parser<'_> {
     /// Given a `Pair`, build a boxed [`Expression`] trait object from it.
     fn expression_from_pair(&mut self, pair: Pair<R>) -> Result<Expr> {
         match pair.as_rule() {
-            R::assignment => {
-                let mut inner = pair.into_inner();
-                let target = self.target_from_pair(inner.next().ok_or(e(R::target))?)?;
-                let expression =
-                    self.expression_from_pair(inner.next().ok_or(e(R::expression))?)?;
-
-                Ok(Expr::from(Assignment::new(
-                    target,
-                    Box::new(expression),
-                    &mut self.compiler_state,
-                )))
-            }
+            R::assignment => self.assignment_from_pairs(pair.into_inner()),
             R::boolean_expr => self.boolean_expr_from_pairs(pair.into_inner()),
             R::block => self.block_from_pairs(pair.into_inner()),
             R::if_statement => self.if_statement_from_pairs(pair.into_inner()),
             _ => Err(e(R::expression)),
         }
+    }
+
+    fn assignment_from_pairs(&mut self, mut pairs: Pairs<R>) -> Result<Expr> {
+        let target = self.target_from_pair(pairs.next().ok_or(e(R::assignment))?)?;
+        let expression = self.expression_from_pair(pairs.next().ok_or(e(R::assignment))?)?;
+
+        // We explicitly reject assigning `Value::Regex` to an object.
+        //
+        // This makes it easier to implement `trait Object`, as you don't need
+        // to convert `Value::Regex` to a compatible type, such as a map in
+        // JSON.
+        if matches!(target, Target::Path(_)) {
+            match &expression {
+                Expr::Literal(literal) if literal.is_regex() => {
+                    return Err(Error::RegexAssignment.into())
+                }
+                Expr::Literal(literal) => {
+                    if let Some(array) = literal.as_array() {
+                        array.iter().try_for_each(|value| {
+                            if value.is_regex() {
+                                Err(E::from(Error::RegexAssignment))
+                            } else {
+                                Ok(())
+                            }
+                        })?
+                    }
+                }
+                Expr::Array(array)
+                    if array.expressions().iter().any(|expr| match expr {
+                        Expr::Literal(literal) => literal.is_regex(),
+                        _ => false,
+                    }) =>
+                {
+                    return Err(Error::RegexAssignment.into())
+                }
+                _ => {}
+            }
+        }
+
+        Ok(Assignment::new(target, Box::new(expression), &mut self.compiler_state).into())
     }
 
     /// Return the target type to which a value is being assigned.
@@ -303,7 +358,7 @@ impl Parser<'_> {
             .multi_line(m)
             .ignore_whitespace(x)
             .build()
-            .map_err(Error::from)
+            .map_err(|err| Error::from(err).into())
     }
 
     /// Parse a [`Path`] value, e.g. ".foo.bar"
@@ -432,14 +487,14 @@ impl Parser<'_> {
 }
 
 #[inline]
-fn e(rule: R) -> Error {
-    Error::Rule(rule)
+fn e(rule: R) -> E {
+    E::Rule(rule)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use pest::Parser as _;
+    use crate::RemapError;
 
     #[test]
     fn check_parser_errors() {
@@ -513,6 +568,16 @@ mod tests {
                 vec![" 1:21\n", "= expected path_segment"],
             ),
             (
+                // we cannot assign a regular expression to a field.
+                r#".foo = /ab/i"#,
+                vec!["remap error: parser error: cannot assign regex to object"],
+            ),
+            (
+                // we cannot assign an array containing a regular expression to a field.
+                r#".foo = ["ab", /ab/i]"#,
+                vec!["remap error: parser error: cannot assign regex to object"],
+            ),
+            (
                 // We cannot assign to a regular expression.
                 r#"/ab/ = .foo"#,
                 vec![" 1:6\n", "= expected EOI, assignment, if_statement, not, operator_boolean_expr, operator_equality, operator_comparison, operator_addition, operator_multiplication, or block"],
@@ -520,8 +585,11 @@ mod tests {
         ];
 
         for (source, exp_expressions) in cases {
-            let err = Parser::parse(Rule::program, source)
+            let mut parser = Parser::new(&[]);
+            let err = parser
+                .parse_source(Rule::program, source)
                 .err()
+                .map(RemapError::from)
                 .unwrap()
                 .to_string();
 
